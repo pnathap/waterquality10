@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ระบบติดตามและแสดงผลคุณภาพน้ำ 10 จุด (กราฟเส้น)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #f1f5f9;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --muted: #475569;
+    --primary: #0369a1;
+    --primary-dark: #075985;
+    --ok: #15803d;
+    --ok-bg: #dcfce7;
+    --low: #b45309;
+    --low-bg: #fef3c7;
+    --high: #be123c;
+    --high-bg: #ffe4e6;
+    --radius: 14px;
+    --shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Prompt', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    font-size: 14px;
+  }
+  .app-header {
+    background: linear-gradient(135deg, #0c4a6e 0%, #0369a1 55%, #0284c7 100%);
+    color: #fff;
+    padding: 18px 20px;
+    box-shadow: 0 6px 20px rgba(3, 105, 161, 0.22);
+  }
+  .header-inner {
+    max-width: 1440px;
+    margin: 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .header-title h1 {
+    margin: 0;
+    font-size: clamp(18px, 2.4vw, 24px);
+    font-weight: 700;
+  }
+  .header-title p {
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    opacity: 0.92;
+  }
+  .header-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 13px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    font-family: 'Prompt', sans-serif;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn-primary { background: #fff; color: var(--primary-dark); }
+  .btn-primary:hover { background: #f0f9ff; transform: translateY(-1px); }
+  .btn-ghost { background: rgba(255,255,255,0.14); color: #fff; border-color: rgba(255,255,255,0.28); }
+  .btn-ghost:hover { background: rgba(255,255,255,0.24); }
+  .btn-accent { background: #0f766e; color: #fff; }
+  .btn-accent:hover { background: #115e59; }
+  .btn-warn { background: #b45309; color: #fff; }
+  .btn-warn:hover { background: #92400e; }
+  .btn-danger { background: #be123c; color: #fff; }
+  .btn-danger:hover { background: #9f1239; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
+
+  .container {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 16px 16px 48px;
+  }
+  .param-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .param-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--chip-color);
+    border-radius: 12px;
+    padding: 10px 12px;
+    box-shadow: var(--shadow);
+  }
+  .param-chip .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .param-chip .swatch {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--chip-color); display: inline-block;
+  }
+  .param-chip .rule {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .nav-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: var(--surface);
+    padding: 8px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .tab-btn {
+    flex: 1 1 150px;
+    padding: 10px 14px;
+    border: none;
+    background: transparent;
+    border-radius: 10px;
+    font-family: 'Prompt', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+  }
+  .tab-btn.active {
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(3, 105, 161, 0.25);
+  }
+  .tab-btn:hover:not(.active) {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .control-card, .chart-card, .advice-card, .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .controls-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .field select, .field input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    font-family: 'Prompt', sans-serif;
+    font-size: 13px;
+    background: #fff;
+    color: var(--text);
+  }
+  .status-banner {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 640px) {
+    .status-banner { grid-template-columns: 1fr; }
+  }
+  .status-box {
+    border-radius: 12px;
+    padding: 10px 14px;
+    border: 1px solid transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .status-box.low { background: var(--low-bg); border-color: #fcd34d; color: #78350f; }
+  .status-box.ok { background: var(--ok-bg); border-color: #86efac; color: #14532d; }
+  .status-box.high { background: var(--high-bg); border-color: #fda4af; color: #881337; }
+  .status-box .st-title { font-size: 12.5px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+  .status-box .st-count { font-size: 16px; font-weight: 700; }
+  .status-box .st-detail { font-size: 11.5px; line-height: 1.4; }
+  .chart-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .chart-header h2 { margin: 0; font-size: 16px; font-weight: 700; }
+  .chart-sub { font-size: 12px; color: var(--muted); }
+  .chart-wrap { position: relative; height: 430px; width: 100%; }
+  @media (max-width: 640px) { .chart-wrap { height: 340px; } }
+  .monthly-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 600px) { .monthly-grid { grid-template-columns: 1fr; } }
+  .mini-chart-wrap { position: relative; height: 290px; width: 100%; }
+  .advice-card h3, .table-top h3 { margin: 0 0 10px; font-size: 15px; font-weight: 700; color: var(--primary-dark); }
+  .advice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    gap: 12px;
+  }
+  .advice-box {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .advice-box h4 { margin: 0 0 6px; font-size: 13.5px; font-weight: 600; }
+  .advice-box ul { margin: 0; padding-left: 18px; font-size: 12.5px; }
+  .advice-box li { margin-bottom: 4px; }
+  .table-top {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  th, td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+    white-space: nowrap;
+  }
+  th {
+    background: #f1f5f9;
+    font-weight: 600;
+    color: #1e293b;
+  }
+  td.left, th.left { text-align: left; }
+  tr:hover td { background: #f8fafc; }
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 4px;
+  }
+  .badge-ok { background: var(--ok-bg); color: var(--ok); }
+  .badge-low { background: var(--low-bg); color: var(--low); }
+  .badge-high { background: var(--high-bg); color: var(--high); }
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .def-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+  }
+  .def-item {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--c);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .def-item h4 { margin: 0 0 6px; font-size: 13.5px; font-weight: 700; }
+  .def-item p { margin: 0 0 6px; font-size: 12.5px; }
+  .def-item .crit { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #0f172a;
+    color: #fff;
+    padding: 11px 16px;
+    border-radius: 10px;
+    font-size: 12.5px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+    opacity: 0;
+    transform: translateY(12px);
+    transition: all 0.25s ease;
+    z-index: 9999;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <div class="header-title">
+      <h1>ระบบแสดงผลและติดตามคุณภาพน้ำ 10 จุดตรวจวัด</h1>
+      <p>โครงการชลประทานฉะเชิงเทรา สำนักงานชลประทานที่ 9 • แสดงผลทศนิยม 2 ตำแหน่ง • บันทึกอัตโนมัติ (LocalStorage) & รองรับ Excel</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-primary" onclick="document.getElementById('excelFileInput').click()">📥 โหลดไฟล์ Excel (Update)</button>
+      <input type="file" id="excelFileInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelUpload(event)" />
+      <button class="btn btn-accent" onclick="exportExcel()">📤 ส่งออก Excel (.xlsx)</button>
+      <button class="btn btn-ghost" onclick="downloadTemplateExcel()">📄 ดาวน์โหลดเทมเพลต Excel</button>
+      <button class="btn btn-warn" onclick="resetToDefaultData()">↺ รีเซ็ตข้อมูลตั้งต้น</button>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="param-strip">
+    <div class="param-chip" style="--chip-color: #16a34a;">
+      <div class="top"><span>1. ค่าความเป็นกรด-ด่าง (pH)</span><span class="swatch"></span></div>
+      <div class="rule">เกณฑ์ปกติ: <strong>6.50 – 8.50</strong> • เส้นกราฟสีเขียว (แกนซ้าย)</div>
+    </div>
+    <div class="param-chip" style="--chip-color: #f97316;">
+      <div class="top"><span>2. ค่าความนำไฟฟ้า (EC)</span><span class="swatch"></span></div>
+      <div class="rule">เกณฑ์ปกติ: <strong>ไม่เกิน 2,000.00</strong> ไมโครโม/ซม. • สีส้ม (แกนขวา)</div>
+    </div>
+    <div class="param-chip" style="--chip-color: #854d0e;">
+      <div class="top"><span>3. ค่าความเค็ม (Sal)</span><span class="swatch"></span></div>
+      <div class="rule">เกณฑ์ปกติ: <strong>ไม่เกิน 1.00</strong> กรัม/ลิตร • สีน้ำตาล (แกนซ้าย)</div>
+    </div>
+    <div class="param-chip" style="--chip-color: #2563eb;">
+      <div class="top"><span>4. ออกซิเจนละลายน้ำ (DO)</span><span class="swatch"></span></div>
+      <div class="rule">เกณฑ์ปกติ: <strong>ไม่ต่ำกว่า 2.00</strong> มก./ลิตร • สีน้ำเงิน (แกนซ้าย)</div>
+    </div>
+    <div class="param-chip" style="--chip-color: #ec4899;">
+      <div class="top"><span>5. ของแข็งละลายน้ำ (TDS)</span><span class="swatch"></span></div>
+      <div class="rule">เกณฑ์ปกติ: <strong>ไม่เกิน 1,300.00</strong> มก./ลิตร • สีชมพู (แกนขวา)</div>
+    </div>
+  </div>
+
+  <div class="nav-tabs" role="tablist">
+    <button class="tab-btn active" data-tab="daily" onclick="switchTab('daily')">1. กราฟรายวัน (5 ค่า / 10 จุด)</button>
+    <button class="tab-btn" data-tab="weekly" onclick="switchTab('weekly')">2. กราฟรายสัปดาห์ (จ.–อา.)</button>
+    <button class="tab-btn" data-tab="monthly" onclick="switchTab('monthly')">3. กราฟรายเดือน (แยก 5 กราฟ)</button>
+    <button class="tab-btn" data-tab="editor" onclick="switchTab('editor')">4. จัดการ / แก้ไข / เพิ่ม-ลบ ข้อมูล</button>
+  </div>
+
+  <div class="control-card" id="filterCard">
+    <div class="controls-grid">
+      <div class="field" id="ctrlDateWrap">
+        <label for="selDate">เลือกวันที่ตรวจวัด (ย้อนหลัง / ล่าสุด)</label>
+        <select id="selDate" onchange="renderActiveView()"></select>
+      </div>
+      <div class="field hidden" id="ctrlStationWrap">
+        <label for="selStation">เลือกจุดตรวจวัด (10 จุด)</label>
+        <select id="selStation" onchange="renderActiveView()"></select>
+      </div>
+      <div class="field hidden" id="ctrlWeekWrap">
+        <label for="selWeek">เลือกสัปดาห์ (จ.–อา.)</label>
+        <select id="selWeek" onchange="renderActiveView()"></select>
+      </div>
+      <div class="field hidden" id="ctrlMonthWrap">
+        <label for="selMonth">เลือกเดือนและปี พ.ศ.</label>
+        <select id="selMonth" onchange="renderActiveView()"></select>
+      </div>
+      <div class="field" id="ctrlStationsMultiWrap">
+        <label for="selStationFilter">ตัวกรองจุดตรวจวัด (ในกราฟรายเดือน)</label>
+        <select id="selStationFilter" onchange="renderActiveView()">
+          <option value="ALL">แสดงครบทั้ง 10 จุด</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <section id="view-daily">
+    <div class="status-banner" id="dailyStatusBanner"></div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <h2 id="dailyChartTitle">กราฟเส้นรายวัน เปรียบเทียบ 5 ค่าตรวจวัด ทั้ง 10 จุด</h2>
+          <div class="chart-sub">แกนซ้าย: pH, Sal (กรัม/ลิตร), DO (มก./ลิตร) | แกนขวา: EC (ไมโครโม/ซม.), TDS (มก./ลิตร) | แนวนอน: ลำดับจุดตรวจวัด 1–10</div>
+        </div>
+        <div class="chart-sub" id="dailyRecordCount"></div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="dailyChartCanvas"></canvas>
+      </div>
+    </div>
+    <div class="advice-card" id="dailyAdviceCard"></div>
+    <div class="table-card">
+      <div class="table-top"><h3>ตารางสรุปผลรายวัน (ทศนิยม 2 ตำแหน่ง พร้อมสถานะเทียบเกณฑ์)</h3></div>
+      <div class="table-scroll"><table id="dailySummaryTable"></table></div>
+    </div>
+  </section>
+
+  <section id="view-weekly" class="hidden">
+    <div class="status-banner" id="weeklyStatusBanner"></div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <h2 id="weeklyChartTitle">กราฟเส้นรายสัปดาห์ (วันจันทร์ – วันอาทิตย์)</h2>
+          <div class="chart-sub">เรียงลำดับแกนนอน: วันจันทร์ → วันอังคาร → วันพุธ → วันพฤหัสบดี → วันศุกร์ → วันเสาร์ → วันอาทิตย์</div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="weeklyChartCanvas"></canvas>
+      </div>
+    </div>
+    <div class="advice-card" id="weeklyAdviceCard"></div>
+    <div class="table-card">
+      <div class="table-top"><h3>ตารางสรุปผลรายสัปดาห์ (วันจันทร์ – วันอาทิตย์)</h3></div>
+      <div class="table-scroll"><table id="weeklySummaryTable"></table></div>
+    </div>
+  </section>
+
+  <section id="view-monthly" class="hidden">
+    <div class="status-banner" id="monthlyStatusBanner"></div>
+    <div class="monthly-grid" id="monthlyChartsGrid"></div>
+    <div class="advice-card" id="monthlyAdviceCard"></div>
+    <div class="table-card">
+      <div class="table-top"><h3>ตารางสรุปผลรายเดือน (รายวัน วันที่ 1 ถึงวันสิ้นเดือน)</h3></div>
+      <div class="table-scroll"><table id="monthlySummaryTable"></table></div>
+    </div>
+  </section>
+
+  <section id="view-editor" class="hidden">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <h2>เพิ่ม / แก้ไขข้อมูลตรวจวัดน้ำ (บันทึกถาวรในเบราว์เซอร์อัตโนมัติ)</h2>
+          <div class="chart-sub">เมื่อบันทึกหรือแก้ไขแล้ว กราฟรายวัน รายสัปดาห์ รายเดือน ตารางสรุป และผลวิเคราะห์จะอัปเดตทันที และคงอยู่แม้กด Refresh/Reload</div>
+        </div>
+      </div>
+      <form id="recordForm" onsubmit="saveRecordFromForm(event)">
+        <input type="hidden" id="editId" />
+        <div class="form-grid">
+          <div class="field"><label for="formStationOrder">จุดตรวจวัด (1–10)</label><select id="formStationOrder" required></select></div>
+          <div class="field"><label for="formDate">วันที่ตรวจวัด (ค.ศ.)</label><input type="date" id="formDate" required /></div>
+          <div class="field"><label for="formTime">เวลา</label><input type="text" id="formTime" placeholder="10.30" /></div>
+          <div class="field"><label for="formTemp">Temp (°C)</label><input type="number" step="0.01" id="formTemp" placeholder="30.00" /></div>
+          <div class="field"><label for="formPH">pH (6.50–8.50)</label><input type="number" step="0.01" id="formPH" required placeholder="7.00" /></div>
+          <div class="field"><label for="formEC">EC (≤ 2,000.00)</label><input type="number" step="0.01" id="formEC" required placeholder="250.00" /></div>
+          <div class="field"><label for="formSal">Sal (≤ 1.00)</label><input type="number" step="0.01" id="formSal" required placeholder="0.12" /></div>
+          <div class="field"><label for="formDO">DO (≥ 2.00)</label><input type="number" step="0.01" id="formDO" required placeholder="2.50" /></div>
+          <div class="field"><label for="formTDS">TDS (≤ 1,300.00)</label><input type="number" step="0.01" id="formTDS" required placeholder="160.00" /></div>
+          <div class="field"><label for="formRemark">หมายเหตุ</label><input type="text" id="formRemark" placeholder="น้ำขึ้น / น้ำลง" /></div>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          <button type="submit" class="btn btn-accent">💾 บันทึกข้อมูล (เพิ่ม / แก้ไข)</button>
+          <button type="button" class="btn btn-warn" onclick="clearForm()">ล้างฟอร์ม</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="table-card">
+      <div class="table-top">
+        <h3>รายการข้อมูลทั้งหมดในระบบ (<span id="allRecordsCount">0</span> รายการ)</h3>
+        <input type="text" id="searchRecordsInput" placeholder="ค้นหาชื่อจุด หรือวันที่..." oninput="renderEditorTable()" style="padding:6px 10px; border:1px solid #cbd5e1; border-radius:8px; font-family:'Prompt',sans-serif; font-size:12.5px;" />
+      </div>
+      <div class="table-scroll" style="max-height: 520px;"><table id="editorTable"></table></div>
+    </div>
+  </section>
+
+  <div class="advice-card" id="definitionsCard">
+    <h3>นิยามและเกณฑ์มาตรฐานของค่าตรวจวัดคุณภาพน้ำทั้ง 5 ค่า (สำหรับประชาชนทั่วไป)</h3>
+    <div class="def-grid">
+      <div class="def-item" style="--c:#16a34a;">
+        <h4>1. ค่าความเป็นกรด-ด่าง (pH) — เส้นสีเขียว</h4>
+        <p>บอกระดับความเป็นกรดหรือด่างของน้ำ ค่า 7.00 คือเป็นกลาง หากต่ำกว่า 6.50 น้ำจะค่อนข้างเป็นกรด อาจระคายเคืองต่อสัตว์น้ำ หากสูงกว่า 8.50 จะเป็นด่างมากขึ้น</p>
+        <div class="crit">เกณฑ์มาตรฐาน: 6.50 – 8.50</div>
+      </div>
+      <div class="def-item" style="--c:#f97316;">
+        <h4>2. ค่าความนำไฟฟ้า (EC) — เส้นสีส้ม</h4>
+        <p>วัดความสามารถของน้ำในการนำกระแสไฟฟ้า แปรผันตามปริมาณไอออนหรือแร่ธาตุที่ละลายอยู่ ค่าที่สูงผิดปกติมักบ่งชี้ถึงน้ำเค็มหนุนหรือสารละลายปะปนมาก</p>
+        <div class="crit">เกณฑ์มาตรฐาน: ไม่เกิน 2,000.00 ไมโครโม/ซม.</div>
+      </div>
+      <div class="def-item" style="--c:#854d0e;">
+        <h4>3. ค่าความเค็ม (Salinity / Sal) — เส้นสีน้ำตาล</h4>
+        <p>บอกปริมาณเกลือที่ละลายในน้ำ หากสูงเกินเกณฑ์อาจส่งผลกระทบต่อพืชผลทางการเกษตร สัตว์น้ำจืด และระบบประปาในเขตน้ำจืด</p>
+        <div class="crit">เกณฑ์มาตรฐาน: ไม่เกิน 1.00 กรัม/ลิตร</div>
+      </div>
+      <div class="def-item" style="--c:#2563eb;">
+        <h4>4. ค่าออกซิเจนละลายน้ำ (DO) — เส้นสีน้ำเงิน</h4>
+        <p>บอกปริมาณก๊าซออกซิเจนที่ละลายอยู่ในน้ำ สำคัญต่อการดำรงชีวิตของปลาและสิ่งมีชีวิตในน้ำ หากต่ำกว่า 2.00 มก./ลิตร สัตว์น้ำอาจขาดออกซิเจน</p>
+        <div class="crit">เกณฑ์มาตรฐาน: ไม่ต่ำกว่า 2.00 มิลลิกรัม/ลิตร</div>
+      </div>
+      <div class="def-item" style="--c:#ec4899;">
+        <h4>5. ค่าของแข็งละลายน้ำทั้งหมด (TDS) — เส้นสีชมพู</h4>
+        <p>รวมแร่ธาตุ เกลือ และสารอินทรีย์ขนาดเล็กที่ละลายอยู่ในน้ำ หากสูงเกินเกณฑ์ น้ำอาจมีรสกร่อยหรือขุ่น ไม่เหมาะต่อการใช้น้ำบางประเภท</p>
+        <div class="crit">เกณฑ์มาตรฐาน: ไม่เกิน 1,300.00 มิลลิกรัม/ลิตร</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toastBox"></div>
+
+<script>
+const STORAGE_KEY = "WATER_QUALITY_10_STATIONS_V1_2569";
+const INITIAL_DATA = [
+  {"id":"1-2026-11-09-8","stationOrder":1,"station":"ทรบ.คลองตาหม้อ","date":"2026-11-09","time":"10.50","temp":31.06,"pH":6.53,"EC":603.0,"Sal":0.29,"DO":5.4,"TDS":386.0,"remark":""},
+  {"id":"1-2026-11-11-9","stationOrder":1,"station":"ทรบ.คลองตาหม้อ","date":"2026-11-11","time":"10.06","temp":29.91,"pH":6.92,"EC":506.0,"Sal":0.24,"DO":1.88,"TDS":324.0,"remark":""},
+  {"id":"1-2026-11-13-10","stationOrder":1,"station":"ทรบ.คลองตาหม้อ","date":"2026-11-13","time":"11.27","temp":29.85,"pH":6.96,"EC":2270.0,"Sal":1.16,"DO":1.82,"TDS":1450.0,"remark":""},
+  {"id":"1-2026-11-14-11","stationOrder":1,"station":"ทรบ.คลองตาหม้อ","date":"2026-11-14","time":"10.09","temp":29.81,"pH":6.76,"EC":391.0,"Sal":0.19,"DO":1.79,"TDS":254.0,"remark":""},
+  {"id":"1-2026-11-16-12","stationOrder":1,"station":"ทรบ.คลองตาหม้อ","date":"2026-11-16","time":"12.32","temp":29.96,"pH":6.91,"EC":3340.0,"Sal":1.74,"DO":1.1,"TDS":2130.0,"remark":""},
+  {"id":"1-2026-11-17-13","stationOrder":1,"station":"ทรบ.คลองตาหม้อ","date":"2026-11-17","time":"10.17","temp":30.06,"pH":6.73,"EC":613.0,"Sal":0.29,"DO":1.67,"TDS":392.0,"remark":""},
+  {"id":"1-2026-11-18-14","stationOrder":1,"station":"ทรบ.คลองตาหม้อ","date":"2026-11-18","time":"9.37","temp":30.25,"pH":6.74,"EC":347.0,"Sal":0.16,"DO":1.37,"TDS":226.0,"remark":""},
+  {"id":"1-2026-11-19-15","stationOrder":1,"station":"ทรบ.คลองตาหม้อ","date":"2026-11-19","time":"9.57","temp":30.52,"pH":7.17,"EC":649.0,"Sal":0.31,"DO":1.59,"TDS":415.0,"remark":""},
+  {"id":"2-2026-11-09-8","stationOrder":2,"station":"ใต้สะพาน MW.7","date":"2026-11-09","time":"10.38","temp":30.85,"pH":6.35,"EC":369.0,"Sal":0.17,"DO":2.43,"TDS":240.0,"remark":""},
+  {"id":"2-2026-11-11-9","stationOrder":2,"station":"ใต้สะพาน MW.7","date":"2026-11-11","time":"9.54","temp":29.73,"pH":6.84,"EC":330.0,"Sal":0.16,"DO":3.07,"TDS":215.0,"remark":""},
+  {"id":"2-2026-11-13-10","stationOrder":2,"station":"ใต้สะพาน MW.7","date":"2026-11-13","time":"11.16","temp":29.53,"pH":6.75,"EC":329.0,"Sal":0.16,"DO":2.2,"TDS":214.0,"remark":""},
+  {"id":"2-2026-11-14-11","stationOrder":2,"station":"ใต้สะพาน MW.7","date":"2026-11-14","time":"9.46","temp":29.64,"pH":6.79,"EC":294.0,"Sal":0.14,"DO":1.52,"TDS":191.0,"remark":""},
+  {"id":"2-2026-11-16-12","stationOrder":2,"station":"ใต้สะพาน MW.7","date":"2026-11-16","time":"12.03","temp":29.67,"pH":6.28,"EC":317.0,"Sal":0.15,"DO":1.26,"TDS":206.0,"remark":""},
+  {"id":"2-2026-11-17-13","stationOrder":2,"station":"ใต้สะพาน MW.7","date":"2026-11-17","time":"10.01","temp":30.1,"pH":6.55,"EC":302.0,"Sal":0.14,"DO":0.88,"TDS":197.0,"remark":""},
+  {"id":"2-2026-11-18-14","stationOrder":2,"station":"ใต้สะพาน MW.7","date":"2026-11-18","time":"9.18","temp":30.06,"pH":6.64,"EC":305.0,"Sal":0.14,"DO":1.15,"TDS":198.0,"remark":""},
+  {"id":"2-2026-11-19-15","stationOrder":2,"station":"ใต้สะพาน MW.7","date":"2026-11-19","time":"9.46","temp":30.52,"pH":6.98,"EC":278.0,"Sal":0.13,"DO":1.33,"TDS":181.0,"remark":""},
+  {"id":"3-2026-11-09-8","stationOrder":3,"station":"คป. ฉะเชิงเทรา","date":"2026-11-09","time":"09.31","temp":31.26,"pH":6.0,"EC":253.0,"Sal":0.12,"DO":3.41,"TDS":164.0,"remark":""},
+  {"id":"3-2026-11-11-9","stationOrder":3,"station":"คป. ฉะเชิงเทรา","date":"2026-11-11","time":"09.02","temp":30.3,"pH":6.32,"EC":245.0,"Sal":0.11,"DO":1.86,"TDS":159.0,"remark":""},
+  {"id":"3-2026-11-13-10","stationOrder":3,"station":"คป. ฉะเชิงเทรา","date":"2026-11-13","time":"10.01","temp":29.5,"pH":6.46,"EC":256.0,"Sal":0.12,"DO":1.97,"TDS":167.0,"remark":""},
+  {"id":"3-2026-11-14-11","stationOrder":3,"station":"คป. ฉะเชิงเทรา","date":"2026-11-14","time":"09.16","temp":29.43,"pH":6.38,"EC":253.0,"Sal":0.12,"DO":1.9,"TDS":164.0,"remark":""},
+  {"id":"3-2026-11-16-12","stationOrder":3,"station":"คป. ฉะเชิงเทรา","date":"2026-11-16","time":"13.57","temp":30.61,"pH":6.77,"EC":267.0,"Sal":0.13,"DO":1.66,"TDS":173.0,"remark":""},
+  {"id":"3-2026-11-17-13","stationOrder":3,"station":"คป. ฉะเชิงเทรา","date":"2026-11-17","time":"9.26","temp":29.98,"pH":7.08,"EC":267.0,"Sal":0.13,"DO":1.33,"TDS":173.0,"remark":""},
+  {"id":"3-2026-11-18-14","stationOrder":3,"station":"คป. ฉะเชิงเทรา","date":"2026-11-18","time":"8.49","temp":30.26,"pH":6.56,"EC":268.0,"Sal":0.13,"DO":1.34,"TDS":174.0,"remark":""},
+  {"id":"3-2026-11-19-15","stationOrder":3,"station":"คป. ฉะเชิงเทรา","date":"2026-11-19","time":"9.18","temp":30.62,"pH":6.77,"EC":270.0,"Sal":0.13,"DO":1.29,"TDS":175.0,"remark":""},
+  {"id":"4-2026-11-09-8","stationOrder":4,"station":"ศาลากลางเก่า","date":"2026-11-09","time":"11.31","temp":30.94,"pH":6.32,"EC":237.0,"Sal":0.11,"DO":1.43,"TDS":154.0,"remark":""},
+  {"id":"4-2026-11-11-9","stationOrder":4,"station":"ศาลากลางเก่า","date":"2026-11-11","time":"10.5","temp":29.59,"pH":7.02,"EC":235.0,"Sal":0.11,"DO":2.24,"TDS":152.0,"remark":""},
+  {"id":"4-2026-11-13-10","stationOrder":4,"station":"ศาลากลางเก่า","date":"2026-11-13","time":"10.25","temp":29.38,"pH":6.54,"EC":224.0,"Sal":0.1,"DO":1.95,"TDS":146.0,"remark":""},
+  {"id":"4-2026-11-14-11","stationOrder":4,"station":"ศาลากลางเก่า","date":"2026-11-14","time":"11.08","temp":29.49,"pH":6.59,"EC":228.0,"Sal":0.11,"DO":1.73,"TDS":148.0,"remark":""},
+  {"id":"4-2026-11-16-12","stationOrder":4,"station":"ศาลากลางเก่า","date":"2026-11-16","time":"11.18","temp":29.66,"pH":6.14,"EC":228.0,"Sal":0.11,"DO":1.31,"TDS":148.0,"remark":""},
+  {"id":"4-2026-11-17-13","stationOrder":4,"station":"ศาลากลางเก่า","date":"2026-11-17","time":"10.57","temp":30.25,"pH":6.52,"EC":232.0,"Sal":0.11,"DO":1.47,"TDS":151.0,"remark":""},
+  {"id":"4-2026-11-18-14","stationOrder":4,"station":"ศาลากลางเก่า","date":"2026-11-18","time":"10.26","temp":30.44,"pH":6.56,"EC":237.0,"Sal":0.11,"DO":1.33,"TDS":154.0,"remark":""},
+  {"id":"4-2026-11-19-15","stationOrder":4,"station":"ศาลากลางเก่า","date":"2026-11-19","time":"10.36","temp":30.81,"pH":6.95,"EC":239.0,"Sal":0.11,"DO":1.52,"TDS":155.0,"remark":""},
+  {"id":"5-2026-11-09-8","stationOrder":5,"station":"เขื่อนทดน้ำบางประกง","date":"2026-11-09","time":"11.58","temp":31.77,"pH":6.46,"EC":235.0,"Sal":0.11,"DO":2.91,"TDS":153.0,"remark":""},
+  {"id":"5-2026-11-11-9","stationOrder":5,"station":"เขื่อนทดน้ำบางประกง","date":"2026-11-11","time":"11.11","temp":29.12,"pH":6.78,"EC":187.0,"Sal":0.09,"DO":2.55,"TDS":121.0,"remark":""},
+  {"id":"5-2026-11-13-10","stationOrder":5,"station":"เขื่อนทดน้ำบางประกง","date":"2026-11-13","time":"12.12","temp":29.07,"pH":6.94,"EC":447.0,"Sal":0.21,"DO":1.34,"TDS":291.0,"remark":""},
+  {"id":"5-2026-11-14-11","stationOrder":5,"station":"เขื่อนทดน้ำบางประกง","date":"2026-11-14","time":"11.33","temp":30.04,"pH":6.59,"EC":265.0,"Sal":0.12,"DO":2.22,"TDS":172.0,"remark":""},
+  {"id":"5-2026-11-16-12","stationOrder":5,"station":"เขื่อนทดน้ำบางประกง","date":"2026-11-16","time":"9.17","temp":29.29,"pH":6.21,"EC":216.0,"Sal":0.1,"DO":1.85,"TDS":141.0,"remark":""},
+  {"id":"5-2026-11-17-13","stationOrder":5,"station":"เขื่อนทดน้ำบางประกง","date":"2026-11-17","time":"11.22","temp":29.82,"pH":6.65,"EC":569.0,"Sal":0.27,"DO":1.47,"TDS":364.0,"remark":""},
+  {"id":"5-2026-11-18-14","stationOrder":5,"station":"เขื่อนทดน้ำบางประกง","date":"2026-11-18","time":"10.44","temp":30.44,"pH":6.83,"EC":483.0,"Sal":0.23,"DO":2.1,"TDS":314.0,"remark":""},
+  {"id":"5-2026-11-19-15","stationOrder":5,"station":"เขื่อนทดน้ำบางประกง","date":"2026-11-19","time":"10.56","temp":30.7,"pH":7.17,"EC":585.0,"Sal":0.28,"DO":2.33,"TDS":374.0,"remark":""},
+  {"id":"6-2026-11-09-8","stationOrder":6,"station":"ปากคลองท่าลาด","date":"2026-11-09","time":"12.51","temp":29.82,"pH":6.37,"EC":165.0,"Sal":0.08,"DO":2.32,"TDS":107.0,"remark":""},
+  {"id":"6-2026-11-11-9","stationOrder":6,"station":"ปากคลองท่าลาด","date":"2026-11-11","time":"12.21","temp":29.42,"pH":6.5,"EC":205.0,"Sal":0.1,"DO":3.95,"TDS":133.0,"remark":""},
+  {"id":"6-2026-11-13-10","stationOrder":6,"station":"ปากคลองท่าลาด","date":"2026-11-13","time":"12.39","temp":29.19,"pH":6.61,"EC":226.0,"Sal":0.11,"DO":1.34,"TDS":147.0,"remark":""},
+  {"id":"6-2026-11-14-11","stationOrder":6,"station":"ปากคลองท่าลาด","date":"2026-11-14","time":"12.05","temp":29.96,"pH":6.53,"EC":185.0,"Sal":0.09,"DO":1.84,"TDS":120.0,"remark":""},
+  {"id":"6-2026-11-16-12","stationOrder":6,"station":"ปากคลองท่าลาด","date":"2026-11-16","time":"9.49","temp":29.5,"pH":5.98,"EC":180.0,"Sal":0.08,"DO":1.37,"TDS":117.0,"remark":""},
+  {"id":"6-2026-11-17-13","stationOrder":6,"station":"ปากคลองท่าลาด","date":"2026-11-17","time":"11.49","temp":30.5,"pH":6.52,"EC":216.0,"Sal":0.1,"DO":1.62,"TDS":140.0,"remark":""},
+  {"id":"6-2026-11-18-14","stationOrder":6,"station":"ปากคลองท่าลาด","date":"2026-11-18","time":"11.16","temp":30.47,"pH":6.48,"EC":195.0,"Sal":0.09,"DO":1.4,"TDS":90.0,"remark":""},
+  {"id":"6-2026-11-19-15","stationOrder":6,"station":"ปากคลองท่าลาด","date":"2026-11-19","time":"11.39","temp":30.69,"pH":6.84,"EC":189.0,"Sal":0.09,"DO":1.53,"TDS":123.0,"remark":""},
+  {"id":"7-2026-11-09-8","stationOrder":7,"station":"ฝายยางกกสับ","date":"2026-11-09","time":"13.08","temp":29.64,"pH":6.39,"EC":160.0,"Sal":0.07,"DO":2.97,"TDS":104.0,"remark":""},
+  {"id":"7-2026-11-11-9","stationOrder":7,"station":"ฝายยางกกสับ","date":"2026-11-11","time":"12.33","temp":28.79,"pH":6.61,"EC":197.0,"Sal":0.09,"DO":2.52,"TDS":128.0,"remark":""},
+  {"id":"7-2026-11-13-10","stationOrder":7,"station":"ฝายยางกกสับ","date":"2026-11-13","time":"12.57","temp":29.07,"pH":6.48,"EC":260.0,"Sal":0.12,"DO":1.58,"TDS":169.0,"remark":""},
+  {"id":"7-2026-11-14-11","stationOrder":7,"station":"ฝายยางกกสับ","date":"2026-11-14","time":"12.22","temp":29.17,"pH":6.4,"EC":297.0,"Sal":0.14,"DO":2.25,"TDS":193.0,"remark":""},
+  {"id":"7-2026-11-16-12","stationOrder":7,"station":"ฝายยางกกสับ","date":"2026-11-16","time":"10.02","temp":29.58,"pH":5.91,"EC":312.0,"Sal":0.15,"DO":2.36,"TDS":203.0,"remark":""},
+  {"id":"7-2026-11-17-13","stationOrder":7,"station":"ฝายยางกกสับ","date":"2026-11-17","time":"12.01","temp":30.33,"pH":6.33,"EC":306.0,"Sal":0.14,"DO":2.31,"TDS":199.0,"remark":""},
+  {"id":"7-2026-11-18-14","stationOrder":7,"station":"ฝายยางกกสับ","date":"2026-11-18","time":"11.33","temp":30.46,"pH":6.49,"EC":295.0,"Sal":0.14,"DO":1.91,"TDS":192.0,"remark":""},
+  {"id":"7-2026-11-19-15","stationOrder":7,"station":"ฝายยางกกสับ","date":"2026-11-19","time":"11.54","temp":30.71,"pH":6.77,"EC":306.0,"Sal":0.14,"DO":2.19,"TDS":199.0,"remark":""},
+  {"id":"8-2026-11-09-8","stationOrder":8,"station":"ปตร.บางคา เหนือ","date":"2026-11-09","time":"13.31","temp":29.5,"pH":6.19,"EC":120.0,"Sal":0.06,"DO":3.19,"TDS":78.0,"remark":""},
+  {"id":"8-2026-11-11-9","stationOrder":8,"station":"ปตร.บางคา เหนือ","date":"2026-11-11","time":"13.03","temp":28.92,"pH":6.51,"EC":145.0,"Sal":0.07,"DO":2.82,"TDS":95.0,"remark":""},
+  {"id":"8-2026-11-13-10","stationOrder":8,"station":"ปตร.บางคา เหนือ","date":"2026-11-13","time":"13.17","temp":28.69,"pH":6.52,"EC":228.0,"Sal":0.11,"DO":2.09,"TDS":148.0,"remark":""},
+  {"id":"8-2026-11-14-11","stationOrder":8,"station":"ปตร.บางคา เหนือ","date":"2026-11-14","time":"12.44","temp":28.82,"pH":6.64,"EC":274.0,"Sal":0.13,"DO":2.85,"TDS":178.0,"remark":""},
+  {"id":"8-2026-11-16-12","stationOrder":8,"station":"ปตร.บางคา เหนือ","date":"2026-11-16","time":"10.18","temp":29.37,"pH":5.98,"EC":267.0,"Sal":0.13,"DO":4.27,"TDS":174.0,"remark":""},
+  {"id":"8-2026-11-17-13","stationOrder":8,"station":"ปตร.บางคา เหนือ","date":"2026-11-17","time":"12.25","temp":30.38,"pH":6.5,"EC":253.0,"Sal":0.12,"DO":2.56,"TDS":164.0,"remark":""},
+  {"id":"8-2026-11-18-14","stationOrder":8,"station":"ปตร.บางคา เหนือ","date":"2026-11-18","time":"11.55","temp":30.39,"pH":6.55,"EC":249.0,"Sal":0.12,"DO":2.71,"TDS":162.0,"remark":""},
+  {"id":"8-2026-11-19-15","stationOrder":8,"station":"ปตร.บางคา เหนือ","date":"2026-11-19","time":"12.13","temp":30.81,"pH":6.87,"EC":356.0,"Sal":0.17,"DO":2.46,"TDS":231.0,"remark":""},
+  {"id":"9-2026-11-09-8","stationOrder":9,"station":"ปตร บางคา ท้าย","date":"2026-11-09","time":"13.41","temp":29.49,"pH":6.27,"EC":119.0,"Sal":0.05,"DO":2.96,"TDS":77.0,"remark":""},
+  {"id":"9-2026-11-11-9","stationOrder":9,"station":"ปตร บางคา ท้าย","date":"2026-11-11","time":"12.53","temp":28.93,"pH":6.52,"EC":147.0,"Sal":0.07,"DO":2.99,"TDS":95.0,"remark":""},
+  {"id":"9-2026-11-13-10","stationOrder":9,"station":"ปตร บางคา ท้าย","date":"2026-11-13","time":"13.24","temp":28.85,"pH":6.47,"EC":251.0,"Sal":0.12,"DO":2.4,"TDS":163.0,"remark":""},
+  {"id":"9-2026-11-14-11","stationOrder":9,"station":"ปตร บางคา ท้าย","date":"2026-11-14","time":"12.49","temp":28.93,"pH":6.63,"EC":273.0,"Sal":0.13,"DO":2.36,"TDS":178.0,"remark":""},
+  {"id":"9-2026-11-16-12","stationOrder":9,"station":"ปตร บางคา ท้าย","date":"2026-11-16","time":"10.23","temp":29.44,"pH":5.92,"EC":264.0,"Sal":0.12,"DO":2.33,"TDS":172.0,"remark":""},
+  {"id":"9-2026-11-17-13","stationOrder":9,"station":"ปตร บางคา ท้าย","date":"2026-11-17","time":"12.3","temp":30.33,"pH":6.41,"EC":253.0,"Sal":0.12,"DO":2.62,"TDS":165.0,"remark":""},
+  {"id":"9-2026-11-18-14","stationOrder":9,"station":"ปตร บางคา ท้าย","date":"2026-11-18","time":"12.04","temp":30.42,"pH":6.51,"EC":244.0,"Sal":0.11,"DO":2.27,"TDS":159.0,"remark":""},
+  {"id":"9-2026-11-19-15","stationOrder":9,"station":"ปตร บางคา ท้าย","date":"2026-11-19","time":"12.18","temp":30.75,"pH":6.87,"EC":358.0,"Sal":0.17,"DO":2.48,"TDS":233.0,"remark":""},
+  {"id":"10-2026-11-09-8","stationOrder":10,"station":"สะพานบ้านเล้อ","date":"2026-11-09","time":"13.58","temp":29.36,"pH":6.22,"EC":116.0,"Sal":0.05,"DO":2.99,"TDS":75.0,"remark":""},
+  {"id":"10-2026-11-11-9","stationOrder":10,"station":"สะพานบ้านเล้อ","date":"2026-11-11","time":"13.26","temp":28.86,"pH":6.58,"EC":165.0,"Sal":0.08,"DO":2.64,"TDS":107.0,"remark":""},
+  {"id":"10-2026-11-13-10","stationOrder":10,"station":"สะพานบ้านเล้อ","date":"2026-11-13","time":"13.39","temp":28.64,"pH":6.54,"EC":193.0,"Sal":0.09,"DO":2.53,"TDS":125.0,"remark":""},
+  {"id":"10-2026-11-14-11","stationOrder":10,"station":"สะพานบ้านเล้อ","date":"2026-11-14","time":"13.09","temp":28.76,"pH":6.65,"EC":178.0,"Sal":0.08,"DO":2.79,"TDS":115.0,"remark":""},
+  {"id":"10-2026-11-16-12","stationOrder":10,"station":"สะพานบ้านเล้อ","date":"2026-11-16","time":"10.37","temp":29.68,"pH":6.13,"EC":216.0,"Sal":0.1,"DO":3.04,"TDS":140.0,"remark":""},
+  {"id":"10-2026-11-17-13","stationOrder":10,"station":"สะพานบ้านเล้อ","date":"2026-11-17","time":"12.46","temp":30.25,"pH":6.41,"EC":216.0,"Sal":0.1,"DO":2.5,"TDS":140.0,"remark":""},
+  {"id":"10-2026-11-18-14","stationOrder":10,"station":"สะพานบ้านเล้อ","date":"2026-11-18","time":"12.19","temp":30.28,"pH":6.66,"EC":232.0,"Sal":0.11,"DO":3.69,"TDS":151.0,"remark":""},
+  {"id":"10-2026-11-19-15","stationOrder":10,"station":"สะพานบ้านเล้อ","date":"2026-11-19","time":"12.33","temp":30.33,"pH":7.0,"EC":252.0,"Sal":0.12,"DO":2.38,"TDS":164.0,"remark":""}
+];
+
+const STATIONS_10 = [
+  { order: 1, name: "ทรบ.คลองตาหม้อ" },
+  { order: 2, name: "ใต้สะพาน MW.7" },
+  { order: 3, name: "คป. ฉะเชิงเทรา" },
+  { order: 4, name: "ศาลากลางเก่า" },
+  { order: 5, name: "เขื่อนทดน้ำบางประกง" },
+  { order: 6, name: "ปากคลองท่าลาด" },
+  { order: 7, name: "ฝายยางกกสับ" },
+  { order: 8, name: "ปตร.บางคา เหนือ" },
+  { order: 9, name: "ปตร บางคา ท้าย" },
+  { order: 10, name: "สะพานบ้านเล้อ" }
+];
+
+const PARAMS_META = [
+  { key: "pH",  label: "pH",  fullName: "ค่าความเป็นกรด-ด่าง (pH)", unit: "", color: "#16a34a", axis: "yLeft",  ruleText: "6.50–8.50" },
+  { key: "EC",  label: "EC",  fullName: "ค่าความนำไฟฟ้า (EC)", unit: "ไมโครโม/ซม.", color: "#f97316", axis: "yRight", ruleText: "≤ 2,000.00" },
+  { key: "Sal", label: "Sal", fullName: "ค่าความเค็ม (Sal)", unit: "กรัม/ลิตร", color: "#854d0e", axis: "yLeft",  ruleText: "≤ 1.00" },
+  { key: "DO",  label: "DO",  fullName: "ออกซิเจนละลายน้ำ (DO)", unit: "มก./ลิตร", color: "#2563eb", axis: "yLeft",  ruleText: "≥ 2.00" },
+  { key: "TDS", label: "TDS", fullName: "ของแข็งละลายน้ำ (TDS)", unit: "มก./ลิตร", color: "#ec4899", axis: "yRight", ruleText: "≤ 1,300.00" }
+];
+
+const THAI_MONTHS_SHORT = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const THAI_MONTHS_FULL  = ["", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+const DOW_NAMES = ["วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์", "วันอาทิตย์"];
+
+let waterData = [];
+let activeTab = "daily";
+let dailyChart = null;
+let weeklyChart = null;
+let monthlyCharts = {};
+
+function showToast(msg) {
+  const el = document.getElementById("toastBox");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
+}
+
+function fmt2(val) {
+  if (val === null || val === undefined || val === "" || Number.isNaN(Number(val))) return "-";
+  return Number(val).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function round2OrNull(val) {
+  if (val === null || val === undefined || String(val).trim() === "") return null;
+  const cleaned = String(val).replace(/,/g, "").replace(/\.\.+/g, ".").trim();
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+function parseThaiDateToIso(raw) {
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const mapM = {
+    "ม.ค.": 1, "ก.พ.": 2, "มี.ค.": 3, "เม.ย.": 4,
+    "พ.ค.": 5, "มิ.ย.": 6, "ก.ค.": 7, "ส.ค.": 8,
+    "ก.ย.": 9, "ต.ค.": 10, "พ.ย.": 11, "ธ.ค.": 12
+  };
+  const parts = s.split(/\s+/);
+  const day = parseInt(parts[0], 10);
+  const month = mapM[parts[1]] || 11;
+  let yr = parseInt(parts[2], 10);
+  if (yr < 100) yr += 2500;
+  const adYear = yr > 2400 ? yr - 543 : yr;
+  return `${adYear}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+}
+
+function enrichRecord(rec) {
+  let iso = rec.date || parseThaiDateToIso(rec.date_raw || "2026-11-19");
+  const [y, m, d] = String(iso).split("-").map(Number);
+  const dtObj = new Date(Date.UTC(y, m - 1, d));
+  const jsDay = dtObj.getUTCDay();
+  const dowIdx = jsDay === 0 ? 6 : jsDay - 1;
+  const yearBE = y + 543;
+  const stOrder = Number(rec.stationOrder) || 1;
+  const stObj = STATIONS_10.find(s => s.order === stOrder) || STATIONS_10[0];
+  return {
+    id: rec.id || `${stOrder}-${iso}-${Math.random().toString(36).slice(2,7)}`,
+    stationOrder: stOrder,
+    station: stObj.name,
+    date: iso,
+    dateLabel: `${d} ${THAI_MONTHS_SHORT[m] || ""} ${String(yearBE).slice(-2)}`,
+    day: d,
+    month: m,
+    yearBE,
+    dowIdx,
+    dowThai: DOW_NAMES[dowIdx],
+    time: rec.time ?? "",
+    temp: round2OrNull(rec.temp),
+    pH: round2OrNull(rec.pH),
+    EC: round2OrNull(rec.EC),
+    Sal: round2OrNull(rec.Sal),
+    DO: round2OrNull(rec.DO),
+    TDS: round2OrNull(rec.TDS),
+    remark: rec.remark ?? ""
+  };
+}
+
+function loadStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        waterData = parsed.map(enrichRecord);
+        return;
+      }
+    }
+  } catch (e) {}
+  waterData = INITIAL_DATA.map(enrichRecord);
+  saveStorage(false);
+}
+
+function saveStorage(notify = true) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(waterData));
+  if (notify) showToast("บันทึกข้อมูลเรียบร้อยแล้ว (อัปเดตกราฟและตารางอัตโนมัติ)");
+}
+
+function resetToDefaultData() {
+  if (!confirm("ยืนยันการรีเซ็ตข้อมูลกลับเป็นข้อมูลตั้งต้นจากไฟล์แนบ พ.ย. 2569?")) return;
+  waterData = INITIAL_DATA.map(enrichRecord);
+  saveStorage(false);
+  refreshFilterOptions();
+  renderActiveView();
+  showToast("รีเซ็ตข้อมูลกลับเป็นค่าตั้งต้นเรียบร้อยแล้ว");
+}
+
+function evaluateParam(paramKey, val) {
+  if (val === null || val === undefined || Number.isNaN(Number(val))) return { status: "none", label: "ไม่มีข้อมูล" };
+  const v = Number(val);
+  if (paramKey === "pH") {
+    if (v < 6.5) return { status: "low", label: "ต่ำกว่าเกณฑ์" };
+    if (v > 8.5) return { status: "high", label: "สูงกว่าเกณฑ์" };
+    return { status: "ok", label: "ปกติ" };
+  }
+  if (paramKey === "EC") return v > 2000 ? { status: "high", label: "สูงกว่าเกณฑ์" } : { status: "ok", label: "ปกติ" };
+  if (paramKey === "Sal") return v > 1.0 ? { status: "high", label: "สูงกว่าเกณฑ์" } : { status: "ok", label: "ปกติ" };
+  if (paramKey === "DO") return v < 2.0 ? { status: "low", label: "ต่ำกว่าเกณฑ์" } : { status: "ok", label: "ปกติ" };
+  if (paramKey === "TDS") return v > 1300 ? { status: "high", label: "สูงกว่าเกณฑ์" } : { status: "ok", label: "ปกติ" };
+  return { status: "ok", label: "ปกติ" };
+}
+
+function getStatusBadgeHtml(paramKey, val) {
+  const ev = evaluateParam(paramKey, val);
+  if (ev.status === "low") return `<span class="badge badge-low">ต่ำกว่าเกณฑ์</span>`;
+  if (ev.status === "high") return `<span class="badge badge-high">สูงกว่าเกณฑ์</span>`;
+  if (ev.status === "ok") return `<span class="badge badge-ok">ปกติ</span>`;
+  return `<span class="badge">-</span>`;
+}
+
+function getWeekStartIso(isoDate) {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const jsDay = dt.getUTCDay();
+  const diffToMon = jsDay === 0 ? -6 : 1 - jsDay;
+  dt.setUTCDate(dt.getUTCDate() + diffToMon);
+  return dt.toISOString().slice(0, 10);
+}
+
+function formatWeekLabel(monIso) {
+  const [y, m, d] = monIso.split("-").map(Number);
+  const startDt = new Date(Date.UTC(y, m - 1, d));
+  const endDt = new Date(Date.UTC(y, m - 1, d + 6));
+  return `สัปดาห์ ${startDt.getUTCDate()} ${THAI_MONTHS_SHORT[startDt.getUTCMonth() + 1]} ${String(startDt.getUTCFullYear() + 543).slice(-2)} – ${endDt.getUTCDate()} ${THAI_MONTHS_SHORT[endDt.getUTCMonth() + 1]} ${String(endDt.getUTCFullYear() + 543).slice(-2)} (จ.–อา.)`;
+}
+
+function getDaysInMonth(yearAD, month1to12) {
+  return new Date(Date.UTC(yearAD, month1to12, 0)).getUTCDate();
+}
+
+function refreshFilterOptions() {
+  const dates = Array.from(new Set(waterData.map(r => r.date))).sort();
+  const selDate = document.getElementById("selDate");
+  const prevDate = selDate.value;
+  selDate.innerHTML = "";
+  dates.forEach(iso => {
+    const sample = waterData.find(r => r.date === iso);
+    const opt = document.createElement("option");
+    opt.value = iso;
+    opt.textContent = `${sample ? sample.dateLabel : iso} (${sample ? sample.dowThai : ""})`;
+    selDate.appendChild(opt);
+  });
+  selDate.value = (prevDate && dates.includes(prevDate)) ? prevDate : (dates[dates.length - 1] || "");
+
+  const selStation = document.getElementById("selStation");
+  const prevSt = selStation.value;
+  selStation.innerHTML = "";
+  STATIONS_10.forEach(st => {
+    const opt = document.createElement("option");
+    opt.value = String(st.order);
+    opt.textContent = `${st.order}. ${st.name}`;
+    selStation.appendChild(opt);
+  });
+  if (prevSt) selStation.value = prevSt;
+
+  const selStFilter = document.getElementById("selStationFilter");
+  const prevFilter = selStFilter.value;
+  selStFilter.innerHTML = `<option value="ALL">แสดงครบทั้ง 10 จุด</option>`;
+  STATIONS_10.forEach(st => {
+    const opt = document.createElement("option");
+    opt.value = String(st.order);
+    opt.textContent = `${st.order}. ${st.name}`;
+    selStFilter.appendChild(opt);
+  });
+  if (prevFilter) selStFilter.value = prevFilter;
+
+  const weekStarts = Array.from(new Set(waterData.map(r => getWeekStartIso(r.date)))).sort();
+  const selWeek = document.getElementById("selWeek");
+  const prevWeek = selWeek.value;
+  selWeek.innerHTML = "";
+  weekStarts.forEach(wIso => {
+    const opt = document.createElement("option");
+    opt.value = wIso;
+    opt.textContent = formatWeekLabel(wIso);
+    selWeek.appendChild(opt);
+  });
+  selWeek.value = (prevWeek && weekStarts.includes(prevWeek)) ? prevWeek : (weekStarts[weekStarts.length - 1] || "");
+
+  const monthsSet = Array.from(new Set(waterData.map(r => r.date.slice(0, 7)))).sort();
+  const selMonth = document.getElementById("selMonth");
+  const prevMonth = selMonth.value;
+  selMonth.innerHTML = "";
+  monthsSet.forEach(ym => {
+    const [y, m] = ym.split("-").map(Number);
+    const opt = document.createElement("option");
+    opt.value = ym;
+    opt.textContent = `${THAI_MONTHS_FULL[m]} พ.ศ. ${y + 543}`;
+    selMonth.appendChild(opt);
+  });
+  selMonth.value = (prevMonth && monthsSet.includes(prevMonth)) ? prevMonth : (monthsSet[monthsSet.length - 1] || "");
+
+  const formSt = document.getElementById("formStationOrder");
+  if (formSt && formSt.options.length === 0) {
+    STATIONS_10.forEach(st => {
+      const opt = document.createElement("option");
+      opt.value = String(st.order);
+      opt.textContent = `${st.order}. ${st.name}`;
+      formSt.appendChild(opt);
+    });
+  }
+}
+
+function switchTab(tabName) {
+  activeTab = tabName;
+  document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tabName));
+  document.getElementById("view-daily").classList.toggle("hidden", tabName !== "daily");
+  document.getElementById("view-weekly").classList.toggle("hidden", tabName !== "weekly");
+  document.getElementById("view-monthly").classList.toggle("hidden", tabName !== "monthly");
+  document.getElementById("view-editor").classList.toggle("hidden", tabName !== "editor");
+  document.getElementById("filterCard").classList.toggle("hidden", tabName === "editor");
+  document.getElementById("ctrlDateWrap").classList.toggle("hidden", tabName !== "daily");
+  document.getElementById("ctrlStationWrap").classList.toggle("hidden", tabName !== "weekly");
+  document.getElementById("ctrlWeekWrap").classList.toggle("hidden", tabName !== "weekly");
+  document.getElementById("ctrlMonthWrap").classList.toggle("hidden", tabName !== "monthly");
+  document.getElementById("ctrlStationsMultiWrap").classList.toggle("hidden", tabName !== "monthly");
+  renderActiveView();
+}
+
+function renderActiveView() {
+  if (activeTab === "daily") renderDailyView();
+  else if (activeTab === "weekly") renderWeeklyView();
+  else if (activeTab === "monthly") renderMonthlyView();
+  else if (activeTab === "editor") renderEditorTable();
+}
+
+function buildStatusBannerHtml(items) {
+  const lowItems = [], okItems = [], highItems = [];
+  items.forEach(it => {
+    const ev = evaluateParam(it.paramKey, it.val);
+    const tag = `${it.contextLabel} ${it.paramLabel}: <strong>${fmt2(it.val)}</strong>`;
+    if (ev.status === "low") lowItems.push(tag);
+    else if (ev.status === "high") highItems.push(tag);
+    else if (ev.status === "ok") okItems.push(tag);
+  });
+  const preview = (arr) => arr.length === 0 ? "ไม่มีรายการ" : arr.slice(0, 6).join(" • ") + (arr.length > 6 ? ` (+อีก ${arr.length - 6} รายการ)` : "");
+  return `
+    <div class="status-box low"><div class="st-title"><span>▼ ต่ำกว่าเกณฑ์</span><span class="st-count">${lowItems.length} ค่า</span></div><div class="st-detail">${preview(lowItems)}</div></div>
+    <div class="status-box ok"><div class="st-title"><span>● ปกติ (ตามเกณฑ์)</span><span class="st-count">${okItems.length} ค่า</span></div><div class="st-detail">${preview(okItems)}</div></div>
+    <div class="status-box high"><div class="st-title"><span>▲ สูงกว่าเกณฑ์</span><span class="st-count">${highItems.length} ค่า</span></div><div class="st-detail">${preview(highItems)}</div></div>
+  `;
+}
+
+function renderDailyView() {
+  const selectedDate = document.getElementById("selDate").value;
+  const rowsForDate = STATIONS_10.map(st => waterData.find(r => r.date === selectedDate && Number(r.stationOrder) === st.order) || {
+    stationOrder: st.order, station: st.name, date: selectedDate, time: "-", temp: null, pH: null, EC: null, Sal: null, DO: null, TDS: null, remark: ""
+  });
+  const sample = waterData.find(r => r.date === selectedDate);
+  const titleDateStr = sample ? `${sample.dateLabel} (${sample.dowThai})` : selectedDate;
+  document.getElementById("dailyChartTitle").textContent = `กราฟเส้นรายวัน 5 ค่าตรวจวัด ทั้ง 10 จุด — วันที่ ${titleDateStr}`;
+  document.getElementById("dailyRecordCount").textContent = `พบข้อมูล ${waterData.filter(r => r.date === selectedDate).length} / 10 จุด`;
+
+  const statusItems = [];
+  rowsForDate.forEach(r => PARAMS_META.forEach(p => {
+    if (r[p.key] !== null && r[p.key] !== undefined) {
+      statusItems.push({ paramKey: p.key, paramLabel: p.label, val: r[p.key], contextLabel: `[${r.stationOrder}.${r.station}]` });
+    }
+  }));
+  document.getElementById("dailyStatusBanner").innerHTML = buildStatusBannerHtml(statusItems);
+
+  const labels = rowsForDate.map(r => `${r.stationOrder}. ${r.station}`);
+  const datasets = PARAMS_META.map(p => ({
+    label: `${p.label} (${p.ruleText}${p.unit ? " " + p.unit : ""})`,
+    data: rowsForDate.map(r => r[p.key]),
+    borderColor: p.color, backgroundColor: p.color, yAxisID: p.axis,
+    tension: 0.25, borderWidth: 2.5, pointRadius: 5, pointHoverRadius: 7
+  }));
+
+  if (dailyChart) dailyChart.destroy();
+  dailyChart = new Chart(document.getElementById("dailyChartCanvas").getContext("2d"), {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "top", labels: { font: { family: "Prompt", size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const p = PARAMS_META[ctx.datasetIndex];
+              const v = ctx.parsed.y;
+              if (v === null || v === undefined) return `${p.label}: ไม่มีข้อมูล`;
+              return `${p.label}: ${fmt2(v)} ${p.unit} [${evaluateParam(p.key, v).label}]`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { title: { display: true, text: "ลำดับสถานที่จุดตรวจวัดน้ำ (1–10)", font: { family: "Prompt", weight: "bold" } }, ticks: { font: { family: "Prompt", size: 11.5 } } },
+        yLeft: { type: "linear", position: "left", title: { display: true, text: "ค่า pH / Sal (กรัม/ลิตร) / DO (มก./ลิตร)", font: { family: "Prompt", weight: "bold" } }, ticks: { font: { family: "Prompt", size: 11 }, callback: v => fmt2(v) } },
+        yRight: { type: "linear", position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "ค่า EC (ไมโครโม/ซม.) / TDS (มก./ลิตร)", font: { family: "Prompt", weight: "bold" } }, ticks: { font: { family: "Prompt", size: 11 }, callback: v => fmt2(v) } }
+      }
+    }
+  });
+
+  let tblHtml = `<thead><tr><th>ลำดับ</th><th class="left">จุดตรวจวัด</th><th>เวลา</th><th>Temp (°C)</th><th>pH (6.50–8.50)</th><th>EC (≤2,000.00)</th><th>Sal (≤1.00)</th><th>DO (≥2.00)</th><th>TDS (≤1,300.00)</th><th class="left">หมายเหตุ</th></tr></thead><tbody>`;
+  rowsForDate.forEach(r => {
+    tblHtml += `<tr><td>${r.stationOrder}</td><td class="left"><strong>${r.station}</strong></td><td>${r.time || "-"}</td><td>${fmt2(r.temp)}</td><td>${fmt2(r.pH)} ${getStatusBadgeHtml("pH", r.pH)}</td><td>${fmt2(r.EC)} ${getStatusBadgeHtml("EC", r.EC)}</td><td>${fmt2(r.Sal)} ${getStatusBadgeHtml("Sal", r.Sal)}</td><td>${fmt2(r.DO)} ${getStatusBadgeHtml("DO", r.DO)}</td><td>${fmt2(r.TDS)} ${getStatusBadgeHtml("TDS", r.TDS)}</td><td class="left">${r.remark || "-"}</td></tr>`;
+  });
+  document.getElementById("dailySummaryTable").innerHTML = tblHtml + `</tbody>`;
+  renderAdviceBox("dailyAdviceCard", `สรุปสถานการณ์และคำแนะนำรายวัน (${titleDateStr})`, statusItems, rowsForDate);
+}
+
+function renderWeeklyView() {
+  const stOrder = Number(document.getElementById("selStation").value) || 1;
+  const weekStart = document.getElementById("selWeek").value;
+  const stObj = STATIONS_10.find(s => s.order === stOrder) || STATIONS_10[0];
+  const [y, m, d] = weekStart.split("-").map(Number);
+  const weekDays = [];
+  for (let i = 0; i < 7; i++) {
+    const dt = new Date(Date.UTC(y, m - 1, d + i));
+    const iso = dt.toISOString().slice(0, 10);
+    weekDays.push({
+      dowName: DOW_NAMES[i],
+      shortDate: `${dt.getUTCDate()} ${THAI_MONTHS_SHORT[dt.getUTCMonth() + 1]}`,
+      record: waterData.find(r => Number(r.stationOrder) === stOrder && r.date === iso) || null
+    });
+  }
+  document.getElementById("weeklyChartTitle").textContent = `กราฟเส้นรายสัปดาห์ (จ.–อา.) — จุดที่ ${stOrder}: ${stObj.name} (${formatWeekLabel(weekStart)})`;
+
+  const statusItems = [];
+  weekDays.forEach(wd => {
+    if (!wd.record) return;
+    PARAMS_META.forEach(p => {
+      if (wd.record[p.key] !== null && wd.record[p.key] !== undefined) {
+        statusItems.push({ paramKey: p.key, paramLabel: p.label, val: wd.record[p.key], contextLabel: `[${wd.dowName} ${wd.shortDate}]` });
+      }
+    });
+  });
+  document.getElementById("weeklyStatusBanner").innerHTML = buildStatusBannerHtml(statusItems);
+
+  const labels = weekDays.map(wd => `${wd.dowName} (${wd.shortDate})`);
+  const datasets = PARAMS_META.map(p => ({
+    label: `${p.label} (${p.ruleText}${p.unit ? " " + p.unit : ""})`,
+    data: weekDays.map(wd => wd.record ? wd.record[p.key] : null),
+    borderColor: p.color, backgroundColor: p.color, yAxisID: p.axis,
+    tension: 0.25, borderWidth: 2.5, pointRadius: 5, pointHoverRadius: 7, spanGaps: true
+  }));
+
+  if (weeklyChart) weeklyChart.destroy();
+  weeklyChart = new Chart(document.getElementById("weeklyChartCanvas").getContext("2d"), {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { position: "top", labels: { font: { family: "Prompt", size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const p = PARAMS_META[ctx.datasetIndex];
+              const v = ctx.parsed.y;
+              if (v === null || v === undefined) return `${p.label}: ไม่มีข้อมูลตรวจวัดวันนี้`;
+              return `${p.label}: ${fmt2(v)} ${p.unit} [${evaluateParam(p.key, v).label}]`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { title: { display: true, text: "วันในสัปดาห์ (วันจันทร์ – วันอาทิตย์)", font: { family: "Prompt", weight: "bold" } }, ticks: { font: { family: "Prompt", size: 11.5 } } },
+        yLeft: { type: "linear", position: "left", title: { display: true, text: "ค่า pH / Sal / DO", font: { family: "Prompt", weight: "bold" } }, ticks: { font: { family: "Prompt", size: 11 }, callback: v => fmt2(v) } },
+        yRight: { type: "linear", position: "right", grid: { drawOnChartArea: false }, title: { display: true, text: "ค่า EC / TDS", font: { family: "Prompt", weight: "bold" } }, ticks: { font: { family: "Prompt", size: 11 }, callback: v => fmt2(v) } }
+      }
+    }
+  });
+
+  let tblHtml = `<thead><tr><th class="left">วันในสัปดาห์</th><th>วันที่</th><th>เวลา</th><th>pH</th><th>EC</th><th>Sal</th><th>DO</th><th>TDS</th></tr></thead><tbody>`;
+  weekDays.forEach(wd => {
+    const r = wd.record;
+    tblHtml += `<tr><td class="left"><strong>${wd.dowName}</strong></td><td>${wd.shortDate}</td><td>${r ? (r.time || "-") : "-"}</td><td>${r ? `${fmt2(r.pH)} ${getStatusBadgeHtml("pH", r.pH)}` : "-"}</td><td>${r ? `${fmt2(r.EC)} ${getStatusBadgeHtml("EC", r.EC)}` : "-"}</td><td>${r ? `${fmt2(r.Sal)} ${getStatusBadgeHtml("Sal", r.Sal)}` : "-"}</td><td>${r ? `${fmt2(r.DO)} ${getStatusBadgeHtml("DO", r.DO)}` : "-"}</td><td>${r ? `${fmt2(r.TDS)} ${getStatusBadgeHtml("TDS", r.TDS)}` : "-"}</td></tr>`;
+  });
+  document.getElementById("weeklySummaryTable").innerHTML = tblHtml + `</tbody>`;
+  renderAdviceBox("weeklyAdviceCard", `สรุปแนวโน้มรายสัปดาห์ — ${stOrder}. ${stObj.name}`, statusItems, weekDays.map(w => w.record).filter(Boolean));
+}
+
+function renderMonthlyView() {
+  const ym = document.getElementById("selMonth").value || "2026-11";
+  const stFilter = document.getElementById("selStationFilter").value;
+  const [yStr, mStr] = ym.split("-");
+  const yearAD = parseInt(yStr, 10);
+  const month1to12 = parseInt(mStr, 10);
+  const daysCount = getDaysInMonth(yearAD, month1to12);
+  const dayLabels = Array.from({ length: daysCount }, (_, i) => `วันที่ ${i + 1}`);
+  const targetStations = stFilter === "ALL" ? STATIONS_10 : STATIONS_10.filter(s => s.order === Number(stFilter));
+  const monthRecords = waterData.filter(r => r.date.startsWith(ym) && (stFilter === "ALL" || Number(r.stationOrder) === Number(stFilter)));
+
+  const statusItems = [];
+  monthRecords.forEach(r => PARAMS_META.forEach(p => {
+    if (r[p.key] !== null && r[p.key] !== undefined) {
+      statusItems.push({ paramKey: p.key, paramLabel: p.label, val: r[p.key], contextLabel: `[${r.day} ${THAI_MONTHS_SHORT[month1to12]} • ${r.stationOrder}.${r.station}]` });
+    }
+  }));
+  document.getElementById("monthlyStatusBanner").innerHTML = buildStatusBannerHtml(statusItems);
+
+  const gridEl = document.getElementById("monthlyChartsGrid");
+  gridEl.innerHTML = "";
+  Object.values(monthlyCharts).forEach(ch => ch && ch.destroy());
+  monthlyCharts = {};
+  const palette = ["#0284c7", "#16a34a", "#f97316", "#9333ea", "#e11d48", "#0d9488", "#ca8a04", "#4f46e5", "#db2777", "#475569"];
+
+  PARAMS_META.forEach((p, pIdx) => {
+    const card = document.createElement("div");
+    card.className = "chart-card";
+    card.style.marginBottom = "0";
+    card.innerHTML = `<div class="chart-header"><div><h2 style="color:${p.color};">กราฟรายเดือน: ${p.fullName} (${p.ruleText}${p.unit ? " " + p.unit : ""})</h2><div class="chart-sub">${THAI_MONTHS_FULL[month1to12]} พ.ศ. ${yearAD + 543} • แนวนอน: วันที่ 1 – ${daysCount}</div></div></div><div class="mini-chart-wrap"><canvas id="mChart_${p.key}"></canvas></div>`;
+    gridEl.appendChild(card);
+
+    const datasets = targetStations.map((st, sIdx) => ({
+      label: `${st.order}. ${st.name}`,
+      data: Array.from({ length: daysCount }, (_, dIdx) => {
+        const found = monthRecords.find(r => Number(r.stationOrder) === st.order && r.day === (dIdx + 1));
+        return found ? found[p.key] : null;
+      }),
+      borderColor: targetStations.length === 1 ? p.color : palette[sIdx % palette.length],
+      backgroundColor: targetStations.length === 1 ? p.color : palette[sIdx % palette.length],
+      tension: 0.25, borderWidth: 2, pointRadius: 3.5, pointHoverRadius: 6, spanGaps: true
+    }));
+
+    monthlyCharts[p.key] = new Chart(document.getElementById(`mChart_${p.key}`).getContext("2d"), {
+      type: "line",
+      data: { labels: dayLabels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { position: "top", labels: { font: { family: "Prompt", size: 10.5 }, boxWidth: 12 } },
+          tooltip: { callbacks: { label: (ctx) => ctx.parsed.y == null ? `${ctx.dataset.label}: ไม่มีข้อมูล` : `${ctx.dataset.label}: ${fmt2(ctx.parsed.y)} ${p.unit} [${evaluateParam(p.key, ctx.parsed.y).label}]` } }
+        },
+        scales: {
+          x: { title: { display: true, text: `วันที่ของเดือน (${THAI_MONTHS_FULL[month1to12]} พ.ศ. ${yearAD + 543})`, font: { family: "Prompt", weight: "bold", size: 11 } }, ticks: { font: { family: "Prompt", size: 10 } } },
+          y: { title: { display: true, text: `${p.label} ${p.unit ? `(${p.unit})` : ""}`, font: { family: "Prompt", weight: "bold", size: 11 } }, ticks: { font: { family: "Prompt", size: 10.5 }, callback: v => fmt2(v) } }
+        }
+      }
+    });
+  });
+
+  const sortedMonthRecs = [...monthRecords].sort((a, b) => a.date.localeCompare(b.date) || a.stationOrder - b.stationOrder);
+  let tblHtml = `<thead><tr><th>วันที่</th><th>วัน</th><th>ลำดับ</th><th class="left">จุดตรวจวัด</th><th>pH</th><th>EC</th><th>Sal</th><th>DO</th><th>TDS</th></tr></thead><tbody>`;
+  if (!sortedMonthRecs.length) {
+    tblHtml += `<tr><td colspan="9">ไม่มีข้อมูลในเดือนนี้</td></tr>`;
+  } else {
+    sortedMonthRecs.forEach(r => {
+      tblHtml += `<tr><td>${r.dateLabel}</td><td>${r.dowThai}</td><td>${r.stationOrder}</td><td class="left"><strong>${r.station}</strong></td><td>${fmt2(r.pH)} ${getStatusBadgeHtml("pH", r.pH)}</td><td>${fmt2(r.EC)} ${getStatusBadgeHtml("EC", r.EC)}</td><td>${fmt2(r.Sal)} ${getStatusBadgeHtml("Sal", r.Sal)}</td><td>${fmt2(r.DO)} ${getStatusBadgeHtml("DO", r.DO)}</td><td>${fmt2(r.TDS)} ${getStatusBadgeHtml("TDS", r.TDS)}</td></tr>`;
+    });
+  }
+  document.getElementById("monthlySummaryTable").innerHTML = tblHtml + `</tbody>`;
+  renderAdviceBox("monthlyAdviceCard", `สรุปผลรายเดือนและคำแนะนำ (${THAI_MONTHS_FULL[month1to12]} พ.ศ. ${yearAD + 543})`, statusItems, sortedMonthRecs);
+}
+
+function renderAdviceBox(containerId, headingText, statusItems, recordsList) {
+  const lowCount = statusItems.filter(x => evaluateParam(x.paramKey, x.val).status === "low").length;
+  const highCount = statusItems.filter(x => evaluateParam(x.paramKey, x.val).status === "high").length;
+  const okCount = statusItems.filter(x => evaluateParam(x.paramKey, x.val).status === "ok").length;
+  const avgOf = (k) => {
+    const vals = recordsList.map(r => r && r[k]).filter(v => v !== null && v !== undefined && !Number.isNaN(Number(v)));
+    return vals.length ? vals.reduce((a, b) => a + Number(b), 0) / vals.length : null;
+  };
+  const recs = [];
+  if (lowCount === 0 && highCount === 0 && okCount > 0) recs.push("คุณภาพน้ำทุกค่าอยู่ในเกณฑ์มาตรฐานปกติ สามารถใช้น้ำตามภารกิจและเฝ้าระวังต่อเนื่องได้");
+  if (statusItems.some(x => x.paramKey === "DO" && evaluateParam("DO", x.val).status === "low")) recs.push("พบค่า DO ต่ำกว่า 2.00 มก./ลิตร ในบางจุด/บางวัน: ควรเฝ้าระวังภาวะออกซิเจนต่ำและการระบาย/เติมอากาศในลำน้ำ");
+  if (statusItems.some(x => x.paramKey === "pH" && evaluateParam("pH", x.val).status === "low")) recs.push("พบค่า pH ต่ำกว่า 6.50 (น้ำค่อนข้างเป็นกรด): ควรติดตามผลกระทบต่อสัตว์น้ำและระบบสูบส่งน้ำ");
+  if (statusItems.some(x => x.paramKey === "pH" && evaluateParam("pH", x.val).status === "high")) recs.push("พบค่า pH สูงกว่า 8.50 (น้ำค่อนข้างเป็นด่าง): ควรตรวจสอบการสะสมของสาหร่ายหรือสารด่าง");
+  if (statusItems.some(x => ["EC","Sal","TDS"].includes(x.paramKey) && evaluateParam(x.paramKey, x.val).status === "high")) recs.push("พบค่า EC / Sal / TDS สูงกว่าเกณฑ์: ควรเฝ้าระวังน้ำเค็มหนุนหรือความเข้มข้นของของแข็งละลายน้ำ และบริหารจัดการน้ำให้เหมาะสม");
+  if (!recs.length) recs.push("ยังไม่มีข้อมูลสำหรับช่วงที่เลือก สามารถเพิ่ม/แก้ไขข้อมูลหรือโหลดไฟล์ Excel ได้");
+
+  document.getElementById(containerId).innerHTML = `
+    <h3>${headingText}</h3>
+    <div class="advice-grid">
+      <div class="advice-box"><h4>📊 สรุปจำนวนค่าตามเกณฑ์มาตรฐาน</h4><ul><li><strong>ต่ำกว่าเกณฑ์:</strong> ${lowCount} ค่า</li><li><strong>ปกติ:</strong> ${okCount} ค่า</li><li><strong>สูงกว่าเกณฑ์:</strong> ${highCount} ค่า</li></ul></div>
+      <div class="advice-box"><h4>📈 ค่าเฉลี่ยช่วงข้อมูลที่แสดง (ทศนิยม 2 ตำแหน่ง)</h4><ul><li>pH เฉลี่ย: <strong>${fmt2(avgOf("pH"))}</strong> | DO เฉลี่ย: <strong>${fmt2(avgOf("DO"))}</strong> มก./ลิตร</li><li>Sal เฉลี่ย: <strong>${fmt2(avgOf("Sal"))}</strong> กรัม/ลิตร</li><li>EC เฉลี่ย: <strong>${fmt2(avgOf("EC"))}</strong> ไมโครโม/ซม. | TDS เฉลี่ย: <strong>${fmt2(avgOf("TDS"))}</strong> มก./ลิตร</li></ul></div>
+      <div class="advice-box"><h4>💡 คำแนะนำเบื้องต้น</h4><ul>${recs.map(r => `<li>${r}</li>`).join("")}</ul></div>
+    </div>
+  `;
+}
+
+function renderEditorTable() {
+  const q = (document.getElementById("searchRecordsInput").value || "").trim().toLowerCase();
+  const sorted = [...waterData].sort((a, b) => b.date.localeCompare(a.date) || a.stationOrder - b.stationOrder);
+  const filtered = q ? sorted.filter(r => r.station.toLowerCase().includes(q) || r.date.toLowerCase().includes(q) || r.dateLabel.toLowerCase().includes(q) || String(r.stationOrder) === q) : sorted;
+  document.getElementById("allRecordsCount").textContent = `${filtered.length} / ${waterData.length}`;
+  let html = `<thead><tr><th>จุด</th><th class="left">ชื่อจุดตรวจวัด</th><th>วันที่</th><th>วัน</th><th>เวลา</th><th>Temp</th><th>pH</th><th>EC</th><th>Sal</th><th>DO</th><th>TDS</th><th>จัดการ</th></tr></thead><tbody>`;
+  filtered.forEach(r => {
+    html += `<tr><td>${r.stationOrder}</td><td class="left"><strong>${r.station}</strong></td><td>${r.dateLabel} (${r.date})</td><td>${r.dowThai}</td><td>${r.time || "-"}</td><td>${fmt2(r.temp)}</td><td>${fmt2(r.pH)}</td><td>${fmt2(r.EC)}</td><td>${fmt2(r.Sal)}</td><td>${fmt2(r.DO)}</td><td>${fmt2(r.TDS)}</td><td><button class="btn btn-primary btn-sm" onclick="editRecordById('${r.id}')">แก้ไข</button> <button class="btn btn-danger btn-sm" onclick="deleteRecordById('${r.id}')">ลบ</button></td></tr>`;
+  });
+  document.getElementById("editorTable").innerHTML = html + `</tbody>`;
+}
+
+function editRecordById(id) {
+  const r = waterData.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById("editId").value = r.id;
+  document.getElementById("formStationOrder").value = String(r.stationOrder);
+  document.getElementById("formDate").value = r.date;
+  document.getElementById("formTime").value = r.time || "";
+  document.getElementById("formTemp").value = r.temp ?? "";
+  document.getElementById("formPH").value = r.pH ?? "";
+  document.getElementById("formEC").value = r.EC ?? "";
+  document.getElementById("formSal").value = r.Sal ?? "";
+  document.getElementById("formDO").value = r.DO ?? "";
+  document.getElementById("formTDS").value = r.TDS ?? "";
+  document.getElementById("formRemark").value = r.remark || "";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  showToast(`กำลังแก้ไขข้อมูล: จุดที่ ${r.stationOrder} (${r.station}) วันที่ ${r.dateLabel}`);
+}
+
+function deleteRecordById(id) {
+  const r = waterData.find(x => x.id === id);
+  if (!r || !confirm(`ยืนยันการลบข้อมูลจุดที่ ${r.stationOrder} (${r.station}) วันที่ ${r.dateLabel}?`)) return;
+  waterData = waterData.filter(x => x.id !== id);
+  saveStorage(true);
+  refreshFilterOptions();
+  renderEditorTable();
+}
+
+function clearForm() {
+  document.getElementById("editId").value = "";
+  document.getElementById("recordForm").reset();
+}
+
+function saveRecordFromForm(e) {
+  e.preventDefault();
+  const existingId = document.getElementById("editId").value;
+  const stOrder = Number(document.getElementById("formStationOrder").value);
+  const dateIso = document.getElementById("formDate").value;
+  if (!dateIso) return;
+  const newRec = enrichRecord({
+    id: existingId || `${stOrder}-${dateIso}-${Date.now()}`,
+    stationOrder: stOrder,
+    date: dateIso,
+    time: document.getElementById("formTime").value.trim(),
+    temp: document.getElementById("formTemp").value,
+    pH: document.getElementById("formPH").value,
+    EC: document.getElementById("formEC").value,
+    Sal: document.getElementById("formSal").value,
+    DO: document.getElementById("formDO").value,
+    TDS: document.getElementById("formTDS").value,
+    remark: document.getElementById("formRemark").value.trim()
+  });
+  if (existingId) {
+    waterData = waterData.map(x => x.id === existingId ? newRec : x);
+  } else {
+    upsertRecord(newRec);
+  }
+  saveStorage(true);
+  clearForm();
+  refreshFilterOptions();
+  renderEditorTable();
+}
+
+function upsertRecord(rec) {
+  const idx = waterData.findIndex(x => Number(x.stationOrder) === Number(rec.stationOrder) && x.date === rec.date);
+  if (idx >= 0) waterData[idx] = rec;
+  else waterData.push(rec);
+}
+
+function exportExcel() {
+  const rows = [...waterData].sort((a, b) => a.stationOrder - b.stationOrder || a.date.localeCompare(b.date)).map(r => ({
+    "ลำดับจุด": r.stationOrder,
+    "จุดตรวจวัด": r.station,
+    "วันที่ (ค.ศ.)": r.date,
+    "วันที่ (พ.ศ.)": r.dateLabel,
+    "วันในสัปดาห์": r.dowThai,
+    "เวลา": r.time,
+    "อุณหภูมิ (Temp)": r.temp !== null ? Number(r.temp.toFixed(2)) : "",
+    "pH": r.pH !== null ? Number(r.pH.toFixed(2)) : "",
+    "EC": r.EC !== null ? Number(r.EC.toFixed(2)) : "",
+    "Sal": r.Sal !== null ? Number(r.Sal.toFixed(2)) : "",
+    "DO": r.DO !== null ? Number(r.DO.toFixed(2)) : "",
+    "TDS": r.TDS !== null ? Number(r.TDS.toFixed(2)) : "",
+    "หมายเหตุ": r.remark
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "ข้อมูลคุณภาพน้ำ");
+  XLSX.writeFile(wb, "ข้อมูลตรวจวัดคุณภาพน้ำ_10จุด.xlsx");
+  showToast("ส่งออกไฟล์ Excel (.xlsx) เรียบร้อยแล้ว");
+}
+
+function downloadTemplateExcel() {
+  const ws = XLSX.utils.json_to_sheet([{
+    "ลำดับจุด": 1, "จุดตรวจวัด": "ทรบ.คลองตาหม้อ", "วันที่ (ค.ศ.)": "2026-11-20",
+    "เวลา": "10.00", "อุณหภูมิ (Temp)": 30.10, "pH": 7.10, "EC": 450.00,
+    "Sal": 0.22, "DO": 3.20, "TDS": 290.00, "หมายเหตุ": "ตัวอย่างข้อมูลใหม่"
+  }]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Template");
+  XLSX.writeFile(wb, "เทมเพลต_ข้อมูลคุณภาพน้ำ.xlsx");
+  showToast("ดาวน์โหลดเทมเพลต Excel เรียบร้อยแล้ว");
+}
+
+function handleExcelUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: "array" });
+      let importedCount = 0;
+      const sheetMap = {
+        "ทรบ.คลองตาหม้อ": 1, "สะพานM.7": 2, "ใต้สะพาน MW.7": 2,
+        "คป.ฉะเชิงเทรา": 3, "คป. ฉะเชิงเทรา": 3, "ศาลากลางเก่า": 4,
+        "เขื่อนทดน้ำ": 5, "เขื่อนทดน้ำบางประกง": 5, "ปากคลองท่าลาด": 6,
+        "ฝายยางกกสับ": 7, "ปตร.บางคา เหนือ": 8, "ปตร.บางคา ท้าย": 9,
+        "ปตร บางคา ท้าย": 9, "สะพานบ้านเล้อ": 10
+      };
+      wb.SheetNames.forEach(sheetName => {
+        const ws = wb.Sheets[sheetName];
+        const rowsArr = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        if (!rowsArr.length) return;
+        const headerRow = rowsArr[0].map(c => String(c).trim());
+        if (headerRow.includes("pH") && headerRow.includes("EC") && headerRow.includes("DO")) {
+          XLSX.utils.sheet_to_json(ws, { defval: "" }).forEach(r => {
+            const rawSt = String(r["ลำดับจุด"] || r["จุดตรวจวัด"] || "").trim();
+            let stOrder = parseInt(rawSt, 10) || (STATIONS_10.find(s => rawSt.includes(s.name) || s.name.includes(rawSt))?.order || 1);
+            const dateRaw = r["วันที่ (ค.ศ.)"] || r["วัน/เดือน/ปี"] || r["วันที่"] || "";
+            if (!String(dateRaw).trim()) return;
+            upsertRecord(enrichRecord({
+              id: `${stOrder}-${parseThaiDateToIso(dateRaw)}`,
+              stationOrder: stOrder,
+              date: parseThaiDateToIso(dateRaw),
+              time: String(r["เวลา"] || ""),
+              temp: r["อุณหภูมิ (Temp)"] ?? r["Temp"] ?? null,
+              pH: r["pH"], EC: r["EC"], Sal: r["Sal"], DO: r["DO"], TDS: r["TDS"],
+              remark: String(r["หมายเหตุ"] || "")
+            }));
+            importedCount++;
+          });
+        } else {
+          const stOrder = sheetMap[sheetName.trim()] || 1;
+          for (let rIdx = 8; rIdx < rowsArr.length; rIdx++) {
+            const row = rowsArr[rIdx];
+            if (!row[1] || String(row[1]).trim() === "") continue;
+            const iso = parseThaiDateToIso(row[1]);
+            upsertRecord(enrichRecord({
+              id: `${stOrder}-${iso}`,
+              stationOrder: stOrder,
+              date: iso,
+              time: String(row[2] || "").trim(),
+              temp: row[3], pH: row[4], EC: row[5], Sal: row[6], DO: row[7], TDS: row[8],
+              remark: String(row[9] || "").trim()
+            }));
+            importedCount++;
+          }
+        }
+      });
+      saveStorage(false);
+      refreshFilterOptions();
+      renderActiveView();
+      showToast(`นำเข้าและอัปเดตข้อมูลจาก Excel สำเร็จ (${importedCount} รายการ)`);
+    } catch (err) {
+      showToast("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel: " + err.message);
+    } finally {
+      event.target.value = "";
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadStorage();
+  refreshFilterOptions();
+  switchTab("daily");
+});
+</script>
+</body>
+</html>
